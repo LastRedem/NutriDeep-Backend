@@ -9,10 +9,11 @@ const rateLimit = require('express-rate-limit');
 
 const app = express();
 const port = process.env.PORT || 3000;
+app.set('trust proxy', true);
 
-// Rate limiter para login: máximo 5 intentos cada 10 minutos por IP
+// Rate limiter para login: max 5 intentos en 10 minutos por IP
 const loginLimiter = rateLimit({
-  windowMs: 10 * 60 * 1000,
+  windowMs: 10 * 60 * 1000, // 10 minutos
   max: 5,
   message: {
     success: false,
@@ -35,12 +36,13 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: true, //HTTPS habilitado
+    secure: false, // Cambiar a true si usas HTTPS en producción
     httpOnly: true,
-    maxAge: 1000 * 60 * 60 * 24
+    maxAge: 1000 * 60 * 60 * 24 // 1 día
   }
 }));
 
+// Login con rate limiter
 app.post('/login', loginLimiter, async (req, res) => {
   const { username, password } = req.body;
 
@@ -49,11 +51,16 @@ app.post('/login', loginLimiter, async (req, res) => {
       const match = await bcrypt.compare(password, process.env.ADMIN_PASS_HASH);
       if (match) {
         req.session.user = username;
+        console.log(`Login exitoso: ${username} desde IP ${req.ip}`);
         return res.json({ success: true });
+      } else {
+        console.log(`Login fallido (contraseña): ${username} desde IP ${req.ip}`);
       }
     } catch (error) {
-      // Error interno de bcrypt
+      console.error('Error en bcrypt.compare:', error);
     }
+  } else {
+    console.log(`Login fallido (usuario): ${username} desde IP ${req.ip}`);
   }
 
   res.status(401).json({ success: false, message: 'Usuario o contraseña incorrectos' });
@@ -81,13 +88,13 @@ app.post('/api/chat', authMiddleware, async (req, res) => {
     const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
       model: 'llama-3.3-70b-versatile',
       messages: [
-        {
-          role: 'system',
+        { 
+          role: 'system', 
           content: `Eres un nutricionista profesional que da consejos saludables y personalizados. Responde en formato Markdown, usando:
 - Negritas para puntos importantes,
 - Saltos de línea,
 - Listas numeradas o con viñetas
-para facilitar la lectura.`
+para facilitar la lectura.` 
         },
         { role: 'user', content: userMessage }
       ]
@@ -101,10 +108,11 @@ para facilitar la lectura.`
     const botReply = response.data.choices?.[0]?.message?.content || 'Sin respuesta';
     res.json({ reply: botReply });
   } catch (error) {
+    console.error(error.response?.data || error.message);
     res.status(500).json({ error: 'Error en la API' });
   }
 });
 
 app.listen(port, () => {
-  //nada por consola
+  console.log(`Servidor corriendo en http://localhost:${port}`);
 });
