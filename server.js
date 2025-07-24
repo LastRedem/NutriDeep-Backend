@@ -10,9 +10,9 @@ const rateLimit = require('express-rate-limit');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Rate limiter para login: max 5 intentos en 10 minutos por IP
+// Rate limiter para login: máximo 5 intentos cada 10 minutos por IP
 const loginLimiter = rateLimit({
-  windowMs: 10 * 60 * 1000, // 10 minutos
+  windowMs: 10 * 60 * 1000,
   max: 5,
   message: {
     success: false,
@@ -35,13 +35,12 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: false, // Cambiar a true si usas HTTPS en producción
+    secure: true, //HTTPS habilitado
     httpOnly: true,
-    maxAge: 1000 * 60 * 60 * 24 // 1 día
+    maxAge: 1000 * 60 * 60 * 24
   }
 }));
 
-// Login con rate limiter
 app.post('/login', loginLimiter, async (req, res) => {
   const { username, password } = req.body;
 
@@ -50,16 +49,11 @@ app.post('/login', loginLimiter, async (req, res) => {
       const match = await bcrypt.compare(password, process.env.ADMIN_PASS_HASH);
       if (match) {
         req.session.user = username;
-        console.log(`Login exitoso: ${username} desde IP ${req.ip}`);
         return res.json({ success: true });
-      } else {
-        console.log(`Login fallido (contraseña): ${username} desde IP ${req.ip}`);
       }
     } catch (error) {
-      console.error('Error en bcrypt.compare:', error);
+      // Error interno de bcrypt
     }
-  } else {
-    console.log(`Login fallido (usuario): ${username} desde IP ${req.ip}`);
   }
 
   res.status(401).json({ success: false, message: 'Usuario o contraseña incorrectos' });
@@ -87,13 +81,13 @@ app.post('/api/chat', authMiddleware, async (req, res) => {
     const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
       model: 'llama-3.3-70b-versatile',
       messages: [
-        { 
-          role: 'system', 
+        {
+          role: 'system',
           content: `Eres un nutricionista profesional que da consejos saludables y personalizados. Responde en formato Markdown, usando:
 - Negritas para puntos importantes,
 - Saltos de línea,
 - Listas numeradas o con viñetas
-para facilitar la lectura.` 
+para facilitar la lectura.`
         },
         { role: 'user', content: userMessage }
       ]
@@ -107,11 +101,10 @@ para facilitar la lectura.`
     const botReply = response.data.choices?.[0]?.message?.content || 'Sin respuesta';
     res.json({ reply: botReply });
   } catch (error) {
-    console.error(error.response?.data || error.message);
     res.status(500).json({ error: 'Error en la API' });
   }
 });
 
 app.listen(port, () => {
-  console.log(`Servidor corriendo en http://localhost:${port}`);
+  //nada por consola
 });
